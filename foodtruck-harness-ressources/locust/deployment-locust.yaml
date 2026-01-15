@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: locust-config
+data:
+  locust: |
+    import time
+    from locust import HttpUser, task, between
+
+    class QuickstartUser(HttpUser):
+        wait_time = between(1, 2)
+
+        @task
+        def index_page(self):
+            self.client.get("/", name="Index")
+
+        @task(3)
+        def view_item(self):
+            item = ["fruit", "fruits", "tacos", "pizza", "test", "burger", ]
+            for item_id in item:
+                self.client.get(f"/search?q={item_id}", name="Search")
+                time.sleep(1)
+
+    #    def on_start(self):
+    #        self.client.post("/login", json={"username":"foo", "password":"bar"})
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust
+spec:
+  selector:
+    matchLabels:
+      app: locust
+  template:
+    metadata:
+      labels:
+        app: locust
+    spec:
+      containers:
+      - image: {{.Values.image}}
+        command: ["/bin/sh"]
+        args: ["-c", "locust -f /mnt/locust/locustfile.py --headless -H http://web:80 -u 10 -r 1"]
+        imagePullPolicy: ""
+        name: locust
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "252Mi"
+            cpu: "200m"
+        ports:
+        - containerPort: 8089
+        volumeMounts:
+        - name: locust-volume
+          mountPath: /mnt/locust
+      volumes:
+        - name: locust-volume
+          configMap:
+            name: locust-config
+            items:
+            - key: "locust"
+              path: "locustfile.py"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: locust
+spec:
+  ports:
+  - name: locust
+    port: 8089
+    targetPort: 8089
+  selector:
+    app: locust
+
+

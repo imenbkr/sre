@@ -1,0 +1,85 @@
+{{- if .Values.dockercfg}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{.Values.name}}-dockercfg
+  annotations:
+    harness.io/skip-versioning: "true"
+data:
+  .dockercfg: {{.Values.dockercfg}}
+type: kubernetes.io/dockercfg
+---
+{{- end}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+        app.kubernetes.io/version: {{.Values.version}}
+    spec:  
+      containers:
+      - args: ["sh", "-c", "python3 app.py"]
+        env:
+        - name: NAMESPACE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://grafana-k8s-monitoring-alloy-receiver.grafana-cloud.svc.cluster.local:4318
+        - name: OTEL_PYTHON_LOG_CORRELATION
+          value: "true"
+        - name: OTEL_LOGS_EXPORTER
+          value: otlp
+        - name: OTEL_METRICS_EXPORTER
+          value: otlp
+        - name: OTEL_TRACES_EXPORTER
+          value: otlp
+        - name: OTEL_LOG_LEVEL
+          value: debug
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: deployment.environment=dev
+        - name: OTEL_SERVICE_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: OTEL_SERVICE_NAME
+          value: web
+        image: {{.Values.image}}
+        imagePullPolicy: Always
+        name: foodtruck
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        ports:
+        - containerPort: 5000
+      restartPolicy: Always
+      imagePullSecrets:
+      - name: {{.Values.name}}-dockercfg
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  ports:
+  - name: web
+    port: 80
+    targetPort: 5000
+  selector:
+    app: web
+  type: LoadBalancer
