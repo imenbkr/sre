@@ -20,7 +20,7 @@ const BASE_URL = __ENV.BASE_URL;
 if (!BASE_URL) {
 	throw new Error("BASE_URL environment variable is not set");
 }
-const SEARCH_TERMS = ["fruit", "fruits", "tacos", "pizza", "coffee", "hot%20dog"];
+const SEARCH_TERMS = __ENV.SEARCH_TERMS;
 export default function () {
   const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
   const res = http.get(`${BASE_URL}/search?q=${term}`);
